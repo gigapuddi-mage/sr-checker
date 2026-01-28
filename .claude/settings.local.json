@@ -1,0 +1,11 @@
+{
+  "permissions": {
+    "allow": [
+      "WebFetch(domain:raidres.top)",
+      "Bash(bun init:*)",
+      "Bash(bun add:*)",
+      "Bash(bunx playwright install:*)",
+      "Bash(bun run:*)"
+    ]
+  }
+}
