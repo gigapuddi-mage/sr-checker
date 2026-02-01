@@ -5,7 +5,11 @@
       "Bash(bun init:*)",
       "Bash(bun add:*)",
       "Bash(bunx playwright install:*)",
-      "Bash(bun run:*)"
+      "Bash(bun run:*)",
+      "Bash(git config:*)",
+      "Bash(git add:*)",
+      "Bash(git commit:*)",
+      "Bash(git push)"
     ]
   }
 }

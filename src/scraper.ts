@@ -1,95 +1,76 @@
-import { chromium, type Browser, type Page } from "playwright";
 import type { RaidData, PlayerReservation, ItemReservation } from "./types";
 
-const BASE_URL = "https://raidres.top/res/";
+const EVENT_API = "https://raidres.top/api/events";
+const RAID_DATA_URL = "https://raidres.top/raids";
 
-let browser: Browser | null = null;
-
-export async function initBrowser(): Promise<void> {
-  if (!browser) {
-    browser = await chromium.launch({ headless: true });
-  }
+interface ApiReservation {
+  raidItemId: number;
+  character: { name: string };
+  srPlus: { value: number };
 }
 
-export async function closeBrowser(): Promise<void> {
-  if (browser) {
-    await browser.close();
-    browser = null;
-  }
+interface ApiResponse {
+  reference: string;
+  raidId: number;
+  reservations: ApiReservation[];
 }
 
-interface CsvRow {
-  id: string;
-  item: string;
-  boss: string;
-  attendee: string;
-  class: string;
-  specialization: string;
-  comment: string;
-  date: string;
-  srPlus: number;
+interface RaidItem {
+  id: number;
+  name: string;
 }
 
-function parseCsvLine(line: string): string[] {
-  const result: string[] = [];
-  let current = "";
-  let inQuotes = false;
-
-  for (let i = 0; i < line.length; i++) {
-    const char = line[i];
-    if (char === '"') {
-      inQuotes = !inQuotes;
-    } else if (char === "," && !inQuotes) {
-      result.push(current);
-      current = "";
-    } else {
-      current += char;
-    }
-  }
-  result.push(current);
-
-  return result;
+interface RaidDataResponse {
+  raidItems: RaidItem[];
 }
 
-function parseCsv(csvContent: string): CsvRow[] {
-  const lines = csvContent.trim().split("\n");
-  if (lines.length < 2) return [];
+// Cache raid data to avoid refetching for same raid
+const raidDataCache = new Map<number, Map<number, string>>();
 
-  // Skip header row
-  const dataLines = lines.slice(1);
-  const rows: CsvRow[] = [];
-
-  for (const line of dataLines) {
-    const fields = parseCsvLine(line);
-    if (fields.length >= 9) {
-      rows.push({
-        id: fields[0],
-        item: fields[1],
-        boss: fields[2],
-        attendee: fields[3],
-        class: fields[4],
-        specialization: fields[5],
-        comment: fields[6],
-        date: fields[7],
-        srPlus: parseInt(fields[8], 10) || 0,
-      });
-    }
+async function getItemNameMap(raidId: number): Promise<Map<number, string>> {
+  if (raidDataCache.has(raidId)) {
+    return raidDataCache.get(raidId)!;
   }
 
-  return rows;
+  const response = await fetch(`${RAID_DATA_URL}/raid_${raidId}.json`);
+  if (!response.ok) {
+    console.warn(`Could not fetch raid data for raid ${raidId}`);
+    return new Map();
+  }
+
+  const data: RaidDataResponse = await response.json();
+  const itemMap = new Map<number, string>();
+  for (const item of data.raidItems) {
+    itemMap.set(item.id, item.name);
+  }
+
+  raidDataCache.set(raidId, itemMap);
+  return itemMap;
 }
 
-function groupByPlayer(rows: CsvRow[]): PlayerReservation[] {
+export async function fetchRaid(eventId: string): Promise<RaidData> {
+  // 1. Fetch event data
+  const response = await fetch(`${EVENT_API}/${eventId}`);
+  if (!response.ok) {
+    throw new Error(`Failed to fetch event ${eventId}: ${response.status}`);
+  }
+  const data: ApiResponse = await response.json();
+
+  // 2. Fetch item names for this raid
+  const itemNames = await getItemNameMap(data.raidId);
+
+  // 3. Group reservations by player
   const playerMap = new Map<string, ItemReservation[]>();
+  for (const res of data.reservations) {
+    const playerName = res.character.name;
+    const itemName = itemNames.get(res.raidItemId) || `Unknown Item (${res.raidItemId})`;
 
-  for (const row of rows) {
-    const playerName = row.attendee;
     if (!playerMap.has(playerName)) {
       playerMap.set(playerName, []);
     }
     playerMap.get(playerName)!.push({
-      itemName: row.item,
-      srValue: row.srPlus,
+      itemName,
+      srValue: res.srPlus.value,
     });
   }
 
@@ -98,83 +79,31 @@ function groupByPlayer(rows: CsvRow[]): PlayerReservation[] {
     reservations.push({ playerName, items });
   }
 
-  return reservations;
+  console.log(`Fetched ${eventId}: ${reservations.length} players, ${data.reservations.length} reservations`);
+
+  return {
+    raidId: eventId,
+    url: `https://raidres.top/res/${eventId}`,
+    reservations,
+  };
 }
 
-export async function scrapeRaid(raidId: string): Promise<RaidData> {
-  if (!browser) {
-    await initBrowser();
-  }
-
-  const page = await browser!.newPage();
-  const url = `${BASE_URL}${raidId}`;
-
-  try {
-    console.log(`Fetching raid data from ${url}...`);
-    await page.goto(url, { waitUntil: "networkidle" });
-    await page.waitForTimeout(2000);
-
-    // Click the Actions button
-    const actionsButton = await page.locator('button:has-text("Actions")').first();
-    await actionsButton.click();
-    await page.waitForTimeout(500);
-
-    // Click Export to CSV
-    const exportButton = await page.locator('text=/export.*csv/i').first();
-    if (!(await exportButton.isVisible())) {
-      throw new Error("Export to CSV option not found");
-    }
-    await exportButton.click();
-    await page.waitForTimeout(1000);
-
-    // Get CSV content from textarea
-    const csvContent = await page.evaluate(() => {
-      const textarea = document.querySelector("textarea");
-      return textarea?.value || "";
-    });
-
-    if (!csvContent) {
-      throw new Error("No CSV content found in export dialog");
-    }
-
-    // Parse CSV and group by player
-    const rows = parseCsv(csvContent);
-    const reservations = groupByPlayer(rows);
-
-    console.log(`  Found ${reservations.length} players with ${rows.length} total reservations`);
-
-    return {
-      raidId,
-      url,
-      reservations,
-    };
-  } finally {
-    await page.close();
-  }
-}
-
-export async function scrapeMultipleRaids(raidIds: string[]): Promise<RaidData[]> {
+export async function fetchMultipleRaids(eventIds: string[]): Promise<RaidData[]> {
   const results: RaidData[] = [];
-
-  await initBrowser();
-
-  for (const raidId of raidIds) {
+  for (const eventId of eventIds) {
     try {
-      const data = await scrapeRaid(raidId);
+      const data = await fetchRaid(eventId);
       results.push(data);
-      // Small delay between requests to be respectful
-      await new Promise((resolve) => setTimeout(resolve, 1000));
     } catch (error) {
-      console.error(`Failed to scrape raid ${raidId}:`, error);
-      results.push({
-        raidId,
-        url: `${BASE_URL}${raidId}`,
-        reservations: [],
-      });
+      console.error(`Failed to fetch event ${eventId}:`, error);
+      results.push({ raidId: eventId, url: `https://raidres.top/res/${eventId}`, reservations: [] });
     }
   }
-
-  await closeBrowser();
-
   return results;
 }
+
+// Backward compatibility - no-ops
+export async function initBrowser(): Promise<void> {}
+export async function closeBrowser(): Promise<void> {}
+export const scrapeRaid = fetchRaid;
+export const scrapeMultipleRaids = fetchMultipleRaids;
