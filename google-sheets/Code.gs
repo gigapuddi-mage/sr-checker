@@ -58,6 +58,7 @@ function fetchRaidData(eventId) {
   var reservations = eventData.reservations;
   for (var j = 0; j < reservations.length; j++) {
     var res = reservations[j];
+    if (!res.srPlus) continue;
     var playerName = res.character.name;
     var itemName = itemNameMap[res.raidItemId] || ("Unknown Item (" + res.raidItemId + ")");
     var srValue = res.srPlus.value;

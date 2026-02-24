@@ -62,6 +62,7 @@ export async function fetchRaid(eventId: string): Promise<RaidData> {
   // 3. Group reservations by player
   const playerMap = new Map<string, ItemReservation[]>();
   for (const res of data.reservations) {
+    if (!res.srPlus) continue;
     const playerName = res.character.name;
     const itemName = itemNames.get(res.raidItemId) || `Unknown Item (${res.raidItemId})`;
 
