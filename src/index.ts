@@ -1,4 +1,4 @@
-import { scrapeMultipleRaids, closeBrowser } from "./scraper";
+import { fetchMultipleRaids } from "./scraper";
 import { validateSrPlus } from "./validator";
 import { printReport, formatSummary } from "./report";
 import type { RaidData, ValidationReport } from "./types";
@@ -54,9 +54,9 @@ async function main(): Promise<void> {
   try {
     // Scrape all raids
     const allRaidIds = [currentRaidId, ...previousRaidIds];
-    console.log(`Scraping ${allRaidIds.length} raid(s)...\n`);
+    console.log(`Fetching ${allRaidIds.length} raid(s)...\n`);
 
-    const allRaids = await scrapeMultipleRaids(allRaidIds);
+    const allRaids = await fetchMultipleRaids(allRaidIds);
 
     const currentWeek = allRaids[0];
     const previousWeeks = allRaids.slice(1);
@@ -83,8 +83,6 @@ async function main(): Promise<void> {
   } catch (error) {
     console.error("Error:", error);
     process.exit(1);
-  } finally {
-    await closeBrowser();
   }
 }
 

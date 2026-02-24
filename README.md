@@ -17,11 +17,7 @@ This tool scrapes reservation data from raidres.top and validates that players h
 ## Installation
 
 ```bash
-# Install dependencies
 bun install
-
-# Install Playwright browser
-bunx playwright install chromium
 ```
 
 ## Usage
@@ -88,8 +84,7 @@ bun test
 
 ## How it works
 
-1. Opens each raid page in a headless browser (Playwright)
-2. Clicks "Actions" → "Export data to CSV"
-3. Parses the CSV data to extract player reservations
-4. Compares current week against previous weeks to calculate expected SR+ values
-5. Generates a validation report
+1. Fetches reservation data from the raidres.top API
+2. Resolves item names from raid data
+3. Compares current week against previous weeks to calculate expected SR+ values
+4. Generates a validation report

@@ -102,9 +102,3 @@ export async function fetchMultipleRaids(eventIds: string[]): Promise<RaidData[]
   }
   return results;
 }
-
-// Backward compatibility - no-ops
-export async function initBrowser(): Promise<void> {}
-export async function closeBrowser(): Promise<void> {}
-export const scrapeRaid = fetchRaid;
-export const scrapeMultipleRaids = fetchMultipleRaids;

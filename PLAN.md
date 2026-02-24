@@ -5,7 +5,7 @@ Build a TypeScript/Bun CLI tool that scrapes raidres.top reservation data and va
 
 ## Requirements Summary
 - **Language**: TypeScript with Bun runtime
-- **Data Source**: raidres.top (uses CSV export via Playwright browser automation)
+- **Data Source**: raidres.top API
 - **SR+ Rules**:
   - Each player has 1 item with SR+ (accumulating) and 1 plain SR item (always 0)
   - New players start at SR+ = 0
@@ -41,11 +41,10 @@ Players with "Exalted" guild reputation can start at SR+ = 2 instead of 0. When 
 ## Implementation
 
 ### Data Extraction Method
-Instead of parsing HTML (which is complex due to dynamic loading), the scraper:
-1. Clicks the "Actions" button on the raid page
-2. Clicks "Export data to CSV"
-3. Reads the CSV content from the textarea in the modal
-4. Parses the CSV to extract player reservations
+The scraper fetches data directly from the raidres.top API:
+1. Fetches event data from `https://raidres.top/api/events/{eventId}`
+2. Fetches item names from `https://raidres.top/raids/raid_{raidId}.json`
+3. Groups reservations by player and extracts SR+ values
 
 ### CSV Format
 ```csv
@@ -66,7 +65,7 @@ ID,Item,Boss,Attendee,Class,Specialization,Comment,"Date (GMT)",SR+
 | File | Purpose |
 |------|---------|
 | `src/index.ts` | CLI entry point |
-| `src/scraper.ts` | Playwright scraping via CSV export |
+| `src/scraper.ts` | API data fetching |
 | `src/validator.ts` | SR+ validation algorithm |
 | `src/report.ts` | Terminal report formatting |
 | `src/types.ts` | Shared TypeScript interfaces |
