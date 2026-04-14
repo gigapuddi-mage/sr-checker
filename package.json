@@ -1,17 +1,11 @@
 {
   "name": "sr-checker",
-  "module": "src/index.ts",
   "type": "module",
   "private": true,
   "scripts": {
-    "start": "bun run src/index.ts",
-    "check": "bun run src/index.ts"
+    "test": "bun test"
   },
   "devDependencies": {
     "@types/bun": "latest"
-  },
-  "peerDependencies": {
-    "typescript": "^5"
-  },
-  "dependencies": {}
+  }
 }

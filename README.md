@@ -1,10 +1,10 @@
 # SR+ Checker
 
-A CLI tool to validate SR+ (Soft Reserve Plus) values for Turtle WoW raids using [raidres.top](https://raidres.top).
+A Google Sheets tool to validate SR+ (Soft Reserve Plus) values for Turtle WoW raids using [raidres.top](https://raidres.top).
 
 ## What it does
 
-This tool scrapes reservation data from raidres.top and validates that players have entered the correct SR+ values based on their history across multiple weeks.
+Fetches reservation data from the raidres.top API and validates that players have entered the correct SR+ values based on their history across multiple weeks.
 
 ### SR+ Rules
 - **New players** start at SR+ = 0
@@ -14,77 +14,31 @@ This tool scrapes reservation data from raidres.top and validates that players h
 - **Miss up to 3 weeks**: Continue from last SR+ value
 - **Miss 4+ weeks**: SR+ resets to 0
 
-## Installation
+See [PLAN.md](PLAN.md) for the full rules specification.
 
-```bash
-bun install
-```
+## Setup
 
-## Usage
-
-```bash
-bun run src/index.ts <current_raid> [previous_raids...]
-```
-
-### Arguments
-- **First argument**: The raid ID to validate (current week)
-- **Remaining arguments**: Previous raid IDs for history comparison (newest to oldest)
-
-### Examples
-
-Validate a single raid (all players expected to have SR+ = 0):
-```bash
-bun run src/index.ts SNDQJT
-```
-
-Validate against 3 previous weeks of history:
-```bash
-bun run src/index.ts SNDQJT 2ECMWK MKJWXC 6TEQQ7
-```
+1. Open your Google Sheet
+2. Create a **Config** sheet with raid IDs:
+   - `B2`: Current raid ID (e.g. `SNDQJT`)
+   - `B3`: Previous week 1
+   - `B4`: Previous week 2
+   - `B5`: Previous week 3
+3. Go to **Extensions > Apps Script**
+4. Paste the contents of [`google-sheets/Code.gs`](google-sheets/Code.gs)
+5. Save and refresh the sheet
+6. Use the **SR+ Checker > Run Validation** menu
 
 The raid ID is the code at the end of the raidres.top URL:
 ```
 https://raidres.top/res/SNDQJT
                         ^^^^^^
-                        This is the raid ID
 ```
-
-## Output
-
-The tool generates a report showing each player's SR+ status:
-
-```
-SR+ Validation Report - Raid SNDQJT
-================================================================================
-
-Player Name        | Item                           |   SR+ | Expected | Status
------------------------------------------------------------------------------------------
-Gzeus              | Ephemeral Pendant              |     7 |        6 | ERROR: Expected 6, got 7
-Mightymax          | Shar'tateth, the Shattered ... |     6 |        4 | ERROR: Expected 4, got 6
-Aeteis             | Shifting Mantle of Ascendancy  |     2 |        0 | WARN: Check for Exalted Status (New player)
-Boaramir           | King's Edict                   |     0 |        0 | OK (New player)
-Ennvii             | Pure Jewel of Draenor          |     9 |        9 | OK
-...
-
---------------------------------------------------------------------------------
-Summary: 25/33 OK, 5 warnings, 3 errors
-```
-
-### Status Types
-- **OK**: SR+ matches expected value
-- **WARNING**: New player or item change with SR+ = 2 (verify exalted status manually)
-- **ERROR**: SR+ doesn't match expected value
 
 ## Testing
 
-Run tests using the snapshot fixtures:
 ```bash
 bun test
 ```
 
-## How it works
-
-1. Fetches reservation data from the raidres.top API
-2. Resolves item names from raid data
-3. Compares current week against previous weeks to calculate expected SR+ values
-4. Generates a validation report
+Tests load and execute the actual `Code.gs` validation functions against CSV fixture data.

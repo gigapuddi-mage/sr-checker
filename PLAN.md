@@ -1,24 +1,10 @@
-# SR+ Validation Script for Turtle WoW Raid Reserves
+# SR+ Validation Rules for Turtle WoW Raid Reserves
 
 ## Overview
-Build a TypeScript/Bun CLI tool that scrapes raidres.top reservation data and validates SR+ values across multiple weeks.
 
-## Requirements Summary
-- **Language**: TypeScript with Bun runtime
-- **Data Source**: raidres.top API
-- **SR+ Rules**:
-  - Each player has 1 item with SR+ (accumulating) and 1 plain SR item (always 0)
-  - New players start at SR+ = 0
-  - **Exalted players** start at SR+ = 2 (manual verification needed)
-  - Same item week-to-week: SR+ should be previous + 1
-  - Missed weeks (up to 3): continue from last known SR+ (+1)
-  - Missed 4+ consecutive weeks: SR+ resets to 0
-  - Changed item: SR+ resets to 0 (or 2 if exalted)
-- **Output**: Terminal report showing each player's SR+ validity
+Validates SR+ (Soft Reserve Plus) values for players across weekly raids using data from [raidres.top](https://raidres.top). The tool runs as a Google Sheets Apps Script.
 
----
-
-## SR+ Rules in Detail
+## SR+ Rules
 
 ### Starting Values
 | Scenario | Expected SR+ |
@@ -36,88 +22,56 @@ Build a TypeScript/Bun CLI tool that scrapes raidres.top reservation data and va
 ### Exalted Status
 Players with "Exalted" guild reputation can start at SR+ = 2 instead of 0. When the validator detects a new player or item change with SR+ = 2, it flags this as a **WARNING** to manually verify exalted status (not an error).
 
----
-
-## Implementation
-
-### Data Extraction Method
-The scraper fetches data directly from the raidres.top API:
-1. Fetches event data from `https://raidres.top/api/events/{eventId}`
-2. Fetches item names from `https://raidres.top/raids/raid_{raidId}.json`
-3. Groups reservations by player and extracts SR+ values
-
-### CSV Format
-```csv
-ID,Item,Boss,Attendee,Class,Specialization,Comment,"Date (GMT)",SR+
-55093,"Remains of Overwhelming Power",Anomalus,Cinamo,Warlock,Affliction,,"2026-01-24 23:57:49",0
-55129,Desecration,Kruul,Cinamo,Warlock,Affliction,,"2026-01-24 23:58:00",2
-```
-
 ### Validation Statuses
 - **OK**: SR+ matches expected value
 - **WARNING**: New player or item change with SR+ = 2 (check for exalted status)
 - **ERROR**: SR+ doesn't match expected value
 
----
+## Data Source
 
-## Files
+The raidres.top API provides:
+1. Event data: `https://raidres.top/api/events/{eventId}` — reservation data (character names, SR+ values)
+2. Item names: `https://raidres.top/raids/raid_{raidId}.json` — item ID to name mapping
 
-| File | Purpose |
-|------|---------|
-| `src/index.ts` | CLI entry point |
-| `src/scraper.ts` | API data fetching |
-| `src/validator.ts` | SR+ validation algorithm |
-| `src/report.ts` | Terminal report formatting |
-| `src/types.ts` | Shared TypeScript interfaces |
-| `test/fixtures/*.csv` | Snapshot data for testing |
-| `test/validator.test.ts` | Validation tests with fixtures |
+Each player has 1 item with SR+ (accumulating) and 1 plain SR item (always 0).
 
----
+## Google Sheets Setup
 
-## Usage
+### Config Sheet
+| Cell | Value |
+|------|-------|
+| A2: "Current Raid ID" | B2: e.g. `SNDQJT` |
+| A3: "Previous Week 1" | B3: e.g. `2ECMWK` |
+| A4: "Previous Week 2" | B4: e.g. `MKJWXC` |
+| A5: "Previous Week 3" | B5: e.g. `6TEQQ7` |
 
-```bash
-# Validate current week against previous weeks
-bun run src/index.ts SNDQJT 2ECMWK MKJWXC 6TEQQ7
+The raid ID is the code at the end of the raidres.top URL: `https://raidres.top/res/SNDQJT`
 
-# Arguments:
-#   1st = current week to validate
-#   2nd+ = previous weeks (newest to oldest) for history comparison
-```
+### Installation
+1. Open your Google Sheet
+2. Go to **Extensions > Apps Script**
+3. Paste the contents of `google-sheets/Code.gs`
+4. Save and refresh the sheet
+5. Use the **SR+ Checker > Run Validation** menu
 
----
+### Results
+The script writes a "Results" sheet with color-coded rows:
+- Red: ERROR
+- Yellow: WARNING
+- Green: OK
 
-## Test Fixtures
+## Testing
 
-Snapshot data from 4 raids saved in `test/fixtures/`:
-- `SNDQJT.csv` - Current week (Jan 24, 2026)
-- `2ECMWK.csv` - Week -1 (Jan 3, 2026)
-- `MKJWXC.csv` - Week -2 (Dec 20, 2025)
-- `6TEQQ7.csv` - Week -3 (Dec 13, 2025)
+Tests run against the actual `Code.gs` validation functions using Bun:
 
-Run tests:
 ```bash
 bun test
 ```
 
----
+Test fixtures in `test/fixtures/` are CSV snapshots from real raidres.top data:
+- `SNDQJT.csv` — Current week (33 players)
+- `2ECMWK.csv` — Week -1 (39 players)
+- `MKJWXC.csv` — Week -2 (41 players)
+- `6TEQQ7.csv` — Week -3 (37 players)
 
-## Example Output
-
-```
-SR+ Validation Report - Raid SNDQJT
-================================================================================
-
-Player Name        | Item                           |   SR+ | Expected | Status
------------------------------------------------------------------------------------------
-Gzeus              | Ephemeral Pendant              |     7 |        6 | ERROR: Expected 6, got 7
-Mightymax          | Shar'tateth, the Shattered ... |     6 |        4 | ERROR: Expected 4, got 6
-Aeteis             | Shifting Mantle of Ascendancy  |     2 |        0 | WARN: Check for Exalted Status (New player)
-Cinamo             | Desecration                    |     2 |        0 | WARN: Check for Exalted Status (Item changed)
-Boaramir           | King's Edict                   |     0 |        0 | OK (New player)
-Ennvii             | Pure Jewel of Draenor          |     9 |        9 | OK
-...
-
---------------------------------------------------------------------------------
-Summary: 25/33 OK, 5 warnings, 3 errors
-```
+The test loader (`test/gas-loader.ts`) evaluates `Code.gs` with GAS globals stubbed, so tests exercise the actual production validation logic.
