@@ -218,16 +218,25 @@ describe("SR+ Validation (Code.gs)", () => {
     expect(result.expectedSrPlus).toBe(4);
   });
 
-  it("validates 4+ week gap resets to 0", () => {
+  it("validates continuation after many missed weeks", () => {
     const previousWeeks = [
       {}, // missed week 1
       {}, // missed week 2
       {}, // missed week 3
       { Player1: [{ itemName: "Cool Sword", srValue: 5 }] }, // 4+ weeks ago
     ];
-    const result = gas.validatePlayer("Player1", "Cool Sword", 0, previousWeeks);
+    const result = gas.validatePlayer("Player1", "Cool Sword", 6, previousWeeks);
     expect(result.status).toBe("OK");
-    expect(result.expectedSrPlus).toBe(0);
+    expect(result.expectedSrPlus).toBe(6);
+  });
+
+  it("validates continuation after 10 missed weeks", () => {
+    const previousWeeks: Record<string, { itemName: string; srValue: number }[]>[] = [];
+    for (let i = 0; i < 10; i++) previousWeeks.push({});
+    previousWeeks.push({ Player1: [{ itemName: "Cool Sword", srValue: 3 }] });
+    const result = gas.validatePlayer("Player1", "Cool Sword", 4, previousWeeks);
+    expect(result.status).toBe("OK");
+    expect(result.expectedSrPlus).toBe(4);
   });
 
   it("validates case-insensitive item name matching", () => {

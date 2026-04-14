@@ -96,11 +96,11 @@ function getSrPlusItem(items) {
  * @returns {{ status, reason, expectedSrPlus }}
  */
 function validatePlayer(playerName, currentItemName, currentSrPlus, previousWeeks) {
-  // Search up to 3 previous weeks
+  // Search all previous weeks
   var foundWeekIndex = -1;
   var previousItem = null;
 
-  for (var i = 0; i < Math.min(previousWeeks.length, 3); i++) {
+  for (var i = 0; i < previousWeeks.length; i++) {
     var weekMap = previousWeeks[i];
     if (weekMap[playerName]) {
       var prevSrPlusItem = getSrPlusItem(weekMap[playerName]);
@@ -117,17 +117,9 @@ function validatePlayer(playerName, currentItemName, currentSrPlus, previousWeek
   var baseReason;
 
   if (foundWeekIndex === -1) {
-    // Not in last 3 weeks – check 4+ weeks back
-    var foundOlder = false;
-    for (var k = 3; k < previousWeeks.length; k++) {
-      if (previousWeeks[k][playerName]) {
-        foundOlder = true;
-        break;
-      }
-    }
     expectedSrPlus = 0;
     isNewOrReset = true;
-    baseReason = foundOlder ? "4+ week gap" : "New player";
+    baseReason = "New player";
   } else {
     // Found in recent weeks
     var sameItem =
@@ -172,11 +164,12 @@ function runValidation() {
   // Read Config sheet
   var configSheet = ss.getSheetByName("Config");
   if (!configSheet) {
-    ui.alert("Please create a 'Config' sheet with raid IDs in B2:B5.");
+    ui.alert("Please create a 'Config' sheet with raid IDs starting in B2.");
     return;
   }
 
-  var raidIdValues = configSheet.getRange("B2:B5").getValues();
+  var lastRow = configSheet.getLastRow();
+  var raidIdValues = lastRow >= 2 ? configSheet.getRange("B2:B" + lastRow).getValues() : [];
   var raidIds = [];
   for (var i = 0; i < raidIdValues.length; i++) {
     var id = String(raidIdValues[i][0]).trim();
@@ -184,7 +177,7 @@ function runValidation() {
   }
 
   if (raidIds.length === 0) {
-    ui.alert("No raid IDs found in Config sheet (B2:B5).");
+    ui.alert("No raid IDs found in Config sheet (column B).");
     return;
   }
 
