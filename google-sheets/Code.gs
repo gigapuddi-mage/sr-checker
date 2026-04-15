@@ -1,14 +1,23 @@
 // SR+ Checker for Google Sheets
 // Paste this entire file into Extensions > Apps Script, then save and refresh your sheet.
 //
-// Config sheet layout:
-//   A2: "Current Raid ID"  B2: e.g. SNDQJT
-//   A3: "Previous Week 1"  B3: e.g. 2ECMWK
-//   A4: "Previous Week 2"  B4: e.g. MKJWXC
-//   A5: "Previous Week 3"  B5: e.g. 6TEQQ7
+// To add a raid:
+//   1. Create two tabs in the sheet: "<RaidName>" and "<RaidName> Results"
+//   2. On the "<RaidName>" tab, fill column B starting at B2:
+//        B2  = current week's raidres.top event ID (e.g. SNDQJT)
+//        B3+ = previous weeks' event IDs, newest first
+//   3. Add "<RaidName>" to the RAIDS array below.
+//   4. Add a matching runValidation_N wrapper at the bottom of this file.
+//   5. Save the Apps Script, reload the spreadsheet, and pick the raid from the
+//      "SR+ Checker" menu.
 
 var EVENT_API = "https://raidres.top/api/events/";
 var RAID_DATA_URL = "https://raidres.top/raids/";
+
+// Add new raids here. Each entry becomes a menu item and expects two tabs:
+//   "<name>"          : raid IDs in column B (B2 = current week, B3+ = previous weeks)
+//   "<name> Results"  : auto-created/cleared on each run
+var RAIDS = ["BWL", "AQ40", "NAXX", "KARA40"];
 
 // Module-level cache: raidId (number) -> { itemId: itemName }
 var itemNameCache = {};
@@ -16,10 +25,11 @@ var itemNameCache = {};
 // ─── Menu ────────────────────────────────────────────────────────────────────
 
 function onOpen() {
-  SpreadsheetApp.getUi()
-    .createMenu("SR+ Checker")
-    .addItem("Run Validation", "runValidation")
-    .addToUi();
+  var menu = SpreadsheetApp.getUi().createMenu("SR+ Checker");
+  for (var i = 0; i < RAIDS.length; i++) {
+    menu.addItem("Run " + RAIDS[i], "runValidation_" + i);
+  }
+  menu.addToUi();
 }
 
 // ─── Data fetching ───────────────────────────────────────────────────────────
@@ -157,14 +167,14 @@ function validatePlayer(playerName, currentItemName, currentSrPlus, previousWeek
 
 // ─── Main entry point ────────────────────────────────────────────────────────
 
-function runValidation() {
+function runValidationForRaid(raidName) {
   var ss = SpreadsheetApp.getActiveSpreadsheet();
   var ui = SpreadsheetApp.getUi();
 
-  // Read Config sheet
-  var configSheet = ss.getSheetByName("Config");
+  // Read the raid's input sheet
+  var configSheet = ss.getSheetByName(raidName);
   if (!configSheet) {
-    ui.alert("Please create a 'Config' sheet with raid IDs starting in B2.");
+    ui.alert("Please create a '" + raidName + "' tab with raid IDs starting in B2.");
     return;
   }
 
@@ -177,7 +187,7 @@ function runValidation() {
   }
 
   if (raidIds.length === 0) {
-    ui.alert("No raid IDs found in Config sheet (column B).");
+    ui.alert("No raid IDs found in '" + raidName + "' tab (column B).");
     return;
   }
 
@@ -189,7 +199,7 @@ function runValidation() {
   try {
     currentRaidMap = fetchRaidData(currentRaidId);
   } catch (e) {
-    ui.alert("Failed to fetch current raid " + currentRaidId + ":\n" + e.message);
+    ui.alert("Failed to fetch current " + raidName + " raid " + currentRaidId + ":\n" + e.message);
     return;
   }
 
@@ -251,9 +261,10 @@ function runValidation() {
 
   // ── Write Results sheet ──────────────────────────────────────────────────
 
-  var resultsSheet = ss.getSheetByName("Results");
+  var resultsSheetName = raidName + " Results";
+  var resultsSheet = ss.getSheetByName(resultsSheetName);
   if (!resultsSheet) {
-    resultsSheet = ss.insertSheet("Results");
+    resultsSheet = ss.insertSheet(resultsSheetName);
   } else {
     resultsSheet.clear();
   }
@@ -309,5 +320,14 @@ function runValidation() {
 
   // Switch to Results sheet and notify
   ss.setActiveSheet(resultsSheet);
-  ui.alert("Validation complete!\n\n" + summaryText);
+  ui.alert("Validation complete for " + raidName + "!\n\n" + summaryText);
 }
+
+// ─── Menu dispatchers ────────────────────────────────────────────────────────
+// Apps Script menus require named global functions — one wrapper per RAIDS entry.
+// Add runValidation_4, runValidation_5, ... as you grow RAIDS.
+
+function runValidation_0() { runValidationForRaid(RAIDS[0]); }
+function runValidation_1() { runValidationForRaid(RAIDS[1]); }
+function runValidation_2() { runValidationForRaid(RAIDS[2]); }
+function runValidation_3() { runValidationForRaid(RAIDS[3]); }
